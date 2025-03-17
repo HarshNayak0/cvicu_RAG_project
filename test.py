@@ -1,75 +1,99 @@
-import pathlib
 import os
 import json
+import ftfy
+import re
 
-
+from pathlib import Path
 from docling.document_converter import DocumentConverter, PdfFormatOption
 from docling.datamodel.pipeline_options import PdfPipelineOptions
 from docling.datamodel.base_models import InputFormat
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 
-pdf_folder_path = "drugs/"
-output_folder = "clean_text/"
+pdf_folder = Path("drugs/")
+output_folder = Path("clean_text/")
+chunks_folder = Path("chunks/")
 
-pipeline_options = PdfPipelineOptions(generate_picture_images=True, do_ocr=False, do_table_structure=True)
+os.makedirs(output_folder, exist_ok=True)
+os.makedirs(chunks_folder, exist_ok=True)
+print("Output Directories Established")
+
+pipeline_options = PdfPipelineOptions(
+    generate_picture_images=True, do_ocr=False, do_table_structure=True
+)
 pipeline_options.table_structure_options.do_cell_matching = False
-converter = DocumentConverter(format_options={
-    InputFormat.PDF: PdfFormatOption(pipeline_options=pipeline_options)
-})
+converter = DocumentConverter(
+    format_options={InputFormat.PDF: PdfFormatOption(pipeline_options=pipeline_options)}
+)
 
 print("Converter Created")
 
 text_splitter = RecursiveCharacterTextSplitter(
-    chunk_size=500,
-    chunk_overlap=50,
-    separators=["\n\n", "\n", " "]
+    chunk_size=500, chunk_overlap=50, separators=["\n\n", "\n", " "]
 )
 
 print("Text Splitter Initialized")
 
-os.makedirs(output_folder, exist_ok=True)
-print("Output Directory Established")
 
-def extract_text_to_markdown(pdf_folder_path):
-    for filename in os.listdir(pdf_folder_path):
-        if filename.endswith(".pdf"):
-            print(f"Beginning to Process {filename}")
-            md_filename = os.path.splitext(filename)[0] + ".md"
-            md_path = os.path.join(output_folder, md_filename)
+def extract_text_to_md(pdf_folder):
+    for pdf_path in pdf_folder.glob("*.pdf"):
+        print(f"Processing {pdf_path.name}")
 
-            result = converter.convert(f"{pdf_folder_path}{filename}")
-            print(f"Processing {filename}")
-            md_text = result.document.export_to_markdown()
+        md_path = output_folder / f"{pdf_path.stem}.md"
 
-            # change back to md_path when done testing
-            pathlib.Path("test_clean_text/acetaminophen.md").write_bytes(md_text.encode())
-            print(f"{filename} saved")
+        result = converter.convert(str(pdf_path))
+        md_text = result.document.export_to_markdown()
 
-all_chunks = []
-md_path = "clean_text/acetaminophen.md"
+        Path(f"{md_path}").write_bytes(md_text.encode())
 
-def chunk_markdown_text(md_path, all_chunks):
 
-    with open(md_path, "r") as f:
-        md_text = f.read()
-        print("Accessing acetaminophen.md")
+def clean_md(output_folder):
 
-    chunks = text_splitter.split_text(md_text)
+    for filename in output_folder.glob("*.md"):
 
-    for i, chunk in enumerate(chunks):
-        all_chunks.append({
-            "file": "acetaminophen.md",
-            "chunk_id": f"acetaminophen.md_{i}",
-            "content": chunk
-        })
+        print(f"Cleaning {filename}...")
 
-    print("Chunks created")
+        md_text = filename.read_text(encoding="utf-8")
 
-    with open("chunks/acetaminophen_chunks.json", "w") as f:
-        json.dump(all_chunks, f, indent=4)
+        # Fix encoding issues & remove unwanted characters
+        md_text = re.sub(r"", "", md_text)  # Remove box bullets
+        md_text = re.sub(r"\_{-}", "", md_text)  # Remove LaTeX artifacts
+        md_text = re.sub(r"\\?_", "", md_text)  # Remove underscores
+        md_text = re.sub(r"\$", "", md_text) #Remove $
 
-    print(f"Chunk data for {md_path} saved")
+        # Save cleaned Markdown file using pathlib
+        filename.write_text(md_text, encoding="utf-8")
+        print(f"Cleaned Markdown saved: {filename}")
 
-extract_text_to_markdown(pdf_folder_path)
-chunk_markdown_text(md_path, all_chunks)
 
+
+def chunk_markdown_text(output_folder, chunks_folder):
+
+    for md_file in output_folder.glob("*.md"):
+
+        print(f"Chunking {md_file.name}...")
+
+        md_text = md_file.read_text(encoding="utf-8")
+
+        chunks = text_splitter.split_text(md_text)
+
+        file_chunks = [
+            {
+                "file": md_file.name,  
+                "chunk_id": f"{md_file.stem}_{i}",  
+                "content": chunk,
+            }
+            for i, chunk in enumerate(chunks)
+        ]
+
+        print("Chunks created for {md_file.name}")
+
+
+        chunk_file = chunks_folder / f"{md_file.stem}_chunks.json"
+        chunk_file.write_text(json.dumps(file_chunks, indent=4), encoding="utf-8")
+
+        print(f"Chunk data for {md_file.name} saved")
+
+
+extract_text_to_md(pdf_folder)
+clean_md(output_folder)
+chunk_markdown_text(output_folder, chunks_folder)
