@@ -7,7 +7,10 @@ from pathlib import Path
 from docling.document_converter import DocumentConverter, PdfFormatOption
 from docling.datamodel.pipeline_options import PdfPipelineOptions
 from docling.datamodel.base_models import InputFormat
-from langchain.text_splitter import RecursiveCharacterTextSplitter
+from langchain.text_splitter import (
+    RecursiveCharacterTextSplitter,
+    MarkdownHeaderTextSplitter,
+)
 
 pdf_folder = Path("drugs/")
 output_folder = Path("clean_text/")
@@ -27,9 +30,17 @@ converter = DocumentConverter(
 
 print("Converter Created")
 
-text_splitter = RecursiveCharacterTextSplitter(
-    chunk_size=500, chunk_overlap=50, separators=["\n\n", "\n", " "]
-)
+# text_splitter = RecursiveCharacterTextSplitter(
+#     chunk_size=500, chunk_overlap=50, separators=["\n\n", "\n", " "]
+# )
+
+headers_to_split_on = [
+    ("#", "Header 1"),
+    ("##", "Header 2"),
+    ("###", "Header 3"),
+]
+
+markdown_splitter = MarkdownHeaderTextSplitter(headers_to_split_on=headers_to_split_on)
 
 print("Text Splitter Initialized")
 
@@ -58,12 +69,12 @@ def clean_md(output_folder):
         md_text = re.sub(r"", "", md_text)  # Remove box bullets
         md_text = re.sub(r"\_{-}", "", md_text)  # Remove LaTeX artifacts
         md_text = re.sub(r"\\?_", "", md_text)  # Remove underscores
-        md_text = re.sub(r"\$", "", md_text) #Remove $
+        md_text = re.sub(r"\$", "", md_text)  # Remove $
+        md_text = re.split(r"\n#+\s*References\b", md_text, flags=re.IGNORECASE)[0]
 
         # Save cleaned Markdown file using pathlib
         filename.write_text(md_text, encoding="utf-8")
         print(f"Cleaned Markdown saved: {filename}")
-
 
 
 def chunk_markdown_text(output_folder, chunks_folder):
@@ -74,19 +85,21 @@ def chunk_markdown_text(output_folder, chunks_folder):
 
         md_text = md_file.read_text(encoding="utf-8")
 
-        chunks = text_splitter.split_text(md_text)
+        chunks = markdown_splitter.split_text(md_text)
 
         file_chunks = [
             {
-                "file": md_file.name,  
-                "chunk_id": f"{md_file.stem}_{i}",  
-                "content": chunk,
+                "file": md_file.name,
+                "chunk_id": f"{md_file.stem}_{i}",
+                "content": (
+                    chunk.page_content if hasattr(chunk, "page_content") else str(chunk)
+                ),
+                "metadata": chunk.metadata if hasattr(chunk, "metadata") else {},
             }
             for i, chunk in enumerate(chunks)
         ]
 
-        print("Chunks created for {md_file.name}")
-
+        print(f"{len(file_chunks)} chunks created for {md_file.name}")
 
         chunk_file = chunks_folder / f"{md_file.stem}_chunks.json"
         chunk_file.write_text(json.dumps(file_chunks, indent=4), encoding="utf-8")
