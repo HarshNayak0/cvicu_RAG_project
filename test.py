@@ -8,18 +8,20 @@ from docling.document_converter import DocumentConverter, PdfFormatOption
 from docling.datamodel.pipeline_options import PdfPipelineOptions
 from docling.datamodel.base_models import InputFormat
 from langchain.text_splitter import (
-    RecursiveCharacterTextSplitter,
     MarkdownHeaderTextSplitter,
 )
 
+#Creates Path objects for file directories -> easier to manipulate and cleaner than manually opening files using os
 pdf_folder = Path("drugs/")
 output_folder = Path("clean_text/")
 chunks_folder = Path("chunks/")
 
+#Ensures that output folders exist, if not it creates them
 os.makedirs(output_folder, exist_ok=True)
 os.makedirs(chunks_folder, exist_ok=True)
 print("Output Directories Established")
 
+#Initializes PDF to Markdown converter courtesy of Docling -> OCR turned off to prevent text from images from being rendered in md incorrectly, table structure optimized
 pipeline_options = PdfPipelineOptions(
     generate_picture_images=True, do_ocr=False, do_table_structure=True
 )
@@ -30,21 +32,19 @@ converter = DocumentConverter(
 
 print("Converter Created")
 
-# text_splitter = RecursiveCharacterTextSplitter(
-#     chunk_size=500, chunk_overlap=50, separators=["\n\n", "\n", " "]
-# )
-
+#Parameters for chunking function
 headers_to_split_on = [
     ("#", "Header 1"),
     ("##", "Header 2"),
     ("###", "Header 3"),
 ]
 
+#Chunker initialized
 markdown_splitter = MarkdownHeaderTextSplitter(headers_to_split_on=headers_to_split_on)
 
 print("Text Splitter Initialized")
 
-
+#PDFs to md - written to appropriate output folder
 def extract_text_to_md(pdf_folder):
     for pdf_path in pdf_folder.glob("*.pdf"):
         print(f"Processing {pdf_path.name}")
@@ -57,6 +57,7 @@ def extract_text_to_md(pdf_folder):
         Path(f"{md_path}").write_bytes(md_text.encode())
 
 
+#md cleaned using regex -> find a more dynamic way of cleaning in later version, regex is poverty
 def clean_md(output_folder):
 
     for filename in output_folder.glob("*.md"):
@@ -76,7 +77,7 @@ def clean_md(output_folder):
         filename.write_text(md_text, encoding="utf-8")
         print(f"Cleaned Markdown saved: {filename}")
 
-
+#md chunked according to headers (best for data set as context is separated by headers)
 def chunk_markdown_text(output_folder, chunks_folder):
 
     for md_file in output_folder.glob("*.md"):
@@ -106,7 +107,7 @@ def chunk_markdown_text(output_folder, chunks_folder):
 
         print(f"Chunk data for {md_file.name} saved")
 
-
+#Pipeline
 extract_text_to_md(pdf_folder)
 clean_md(output_folder)
 chunk_markdown_text(output_folder, chunks_folder)
