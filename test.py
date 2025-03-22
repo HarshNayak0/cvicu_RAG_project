@@ -126,6 +126,13 @@ def embed_chunks(chunks_folder, model_name="all-MiniLM-L6-v2"):
         for chunk in chunk_data:
             text = chunk["content"]
             embedding = model.encode(text)
+
+            # Normalize embedding for cosine similarity
+            norm = np.linalg.norm(embedding)
+            if norm != 0:
+                embedding = embedding / norm
+
+            
             all_embeddings.append(embedding)
             all_metadatas.append(
                 {
@@ -135,13 +142,14 @@ def embed_chunks(chunks_folder, model_name="all-MiniLM-L6-v2"):
                     "preview": text[:200],
                 }
             )
+
         print(f"Chunks embedded for {chunk_file.name}")
 
     print(f"Total chunks embedded: {len(all_embeddings)}")
 
     # Build and save FAISS index
     dimension = len(all_embeddings[0])
-    index = faiss.IndexFlatL2(dimension)
+    index = faiss.IndexFlatIP(dimension)
     index.add(np.array(all_embeddings).astype("float32"))
 
     # Save index and metadata
@@ -149,7 +157,8 @@ def embed_chunks(chunks_folder, model_name="all-MiniLM-L6-v2"):
     Path("rag_metadata.pkl").write_bytes(pickle.dumps(all_metadatas))
 
     print("FAISS index saved to 'rag_index.faiss'")
-    print("Metadata saved to 'rag_metadata.pkl'") 
+    print("Metadata saved to 'rag_metadata.pkl'")
+
 
 def inspect_metadata(metadata_folder="rag_metadata.pkl"):
 
@@ -157,11 +166,11 @@ def inspect_metadata(metadata_folder="rag_metadata.pkl"):
         metadata = pickle.load(f)
 
         # Manipulate indexing to retrieve specific chunks
-        print(metadata[20:22])  
+        print(metadata[20:22])
 
 
 # Pipeline
-extract_text_to_md(pdf_folder)
-clean_md(output_folder)
-chunk_markdown_text(output_folder, chunks_folder)
+# extract_text_to_md(pdf_folder)
+# clean_md(output_folder)
+# chunk_markdown_text(output_folder, chunks_folder)
 embed_chunks(chunks_folder)
