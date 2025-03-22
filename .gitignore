@@ -25,4 +25,8 @@ __pycache__/
 
 *test_extraction.py
 
+*rag_index.faiss
+
+*rag_metadata.pkl
+
 
