@@ -20,11 +20,13 @@ if not index_path.exists() or not metadata_path.exists():
 index = faiss.read_index(str(index_path))
 metadata = pickle.loads(metadata_path.read_bytes())
 
+
 def normalize(vector):
     norm = np.linalg.norm(vector)
     if norm == 0:
         return vector
     return vector / norm
+
 
 def search_chunks(query, top_k=5, boost_keywords=True, strict_file_filter=True):
     """
@@ -38,7 +40,9 @@ def search_chunks(query, top_k=5, boost_keywords=True, strict_file_filter=True):
     query_vector = normalize(query_vector).reshape(1, -1)
 
     # Search the FAISS index
-    distances, indices = index.search(query_vector, top_k * 2)  # retrieve more to rerank
+    distances, indices = index.search(
+        query_vector, top_k * 2
+    )  # retrieve more to rerank
 
     # Clean and split query for basic keyword matching
     query_keywords = set(re.findall(r"\w+", query.lower()))
@@ -48,13 +52,13 @@ def search_chunks(query, top_k=5, boost_keywords=True, strict_file_filter=True):
     if strict_file_filter:
         for word in query_keywords:
             candidate = word + ".md"
-            if any(m['file'].lower() == candidate for m in metadata):
+            if any(m["file"].lower() == candidate for m in metadata):
                 drug_filter = candidate
                 break
     results = []
     for i, idx in enumerate(indices[0]):
         # Apply drug-specific file filtering if applicable
-        if drug_filter and metadata[idx]['file'].lower() != drug_filter:
+        if drug_filter and metadata[idx]["file"].lower() != drug_filter:
             continue
         result = metadata[idx].copy()
         result["distance"] = float(distances[0][i])
@@ -80,7 +84,7 @@ def search_chunks(query, top_k=5, boost_keywords=True, strict_file_filter=True):
     # Sort by a combination of FAISS score and keyword match
     # Weighting parameters
     alpha = 2.0  # weight for keyword score
-    beta = 1.0   # weight for vector similarity (inverted distance)
+    beta = 1.0  # weight for vector similarity (inverted distance)
 
     for r in results:
         sim_score = 1.0 - r["distance"]  # flip distance to similarity
@@ -90,6 +94,7 @@ def search_chunks(query, top_k=5, boost_keywords=True, strict_file_filter=True):
     results.sort(key=lambda x: -x["hybrid_score"])
 
     return results[:top_k]
+
 
 if __name__ == "__main__":
     while True:

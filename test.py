@@ -10,7 +10,10 @@ from pathlib import Path
 from docling.document_converter import DocumentConverter, PdfFormatOption
 from docling.datamodel.pipeline_options import PdfPipelineOptions
 from docling.datamodel.base_models import InputFormat
-from langchain.text_splitter import MarkdownHeaderTextSplitter
+from langchain.text_splitter import (
+    MarkdownHeaderTextSplitter,
+    RecursiveCharacterTextSplitter,
+)
 
 
 # Creates Path objects for file directories -> easier to manipulate and cleaner than manually opening files using os
@@ -41,8 +44,15 @@ headers_to_split_on = [
     ("###", "Header 3"),
 ]
 
-# Chunker initialized
-markdown_splitter = MarkdownHeaderTextSplitter(headers_to_split_on=headers_to_split_on)
+# Markdown Chunker initialized
+# splitter = MarkdownHeaderTextSplitter(headers_to_split_on=headers_to_split_on)
+
+# Recursive Character Splitter initialized
+splitter = RecursiveCharacterTextSplitter(
+    chunk_size=800,
+    chunk_overlap=100,
+    separators=["\n\n", "\n", ".", " ", ""],
+)
 
 print("Text Splitter Initialized")
 
@@ -90,7 +100,7 @@ def chunk_markdown_text(output_folder, chunks_folder):
 
         md_text = md_file.read_text(encoding="utf-8")
 
-        chunks = markdown_splitter.split_text(md_text)
+        chunks = splitter.split_text(md_text)
 
         file_chunks = [
             {
@@ -132,7 +142,6 @@ def embed_chunks(chunks_folder, model_name="all-MiniLM-L6-v2"):
             if norm != 0:
                 embedding = embedding / norm
 
-            
             all_embeddings.append(embedding)
             all_metadatas.append(
                 {
@@ -172,5 +181,5 @@ def inspect_metadata(metadata_folder="rag_metadata.pkl"):
 # Pipeline
 # extract_text_to_md(pdf_folder)
 # clean_md(output_folder)
-# chunk_markdown_text(output_folder, chunks_folder)
+chunk_markdown_text(output_folder, chunks_folder)
 embed_chunks(chunks_folder)
