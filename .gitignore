@@ -10,6 +10,8 @@ drugs_final/
 
 test_clean_text/
 
+models/
+
 env/
 venv/
 __pycache__/
