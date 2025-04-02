@@ -10,11 +10,7 @@ from pathlib import Path
 from docling.document_converter import DocumentConverter, PdfFormatOption
 from docling.datamodel.pipeline_options import PdfPipelineOptions
 from docling.datamodel.base_models import InputFormat
-from langchain.text_splitter import (
-    MarkdownHeaderTextSplitter,
-    RecursiveCharacterTextSplitter,
-)
-
+from langchain.text_splitter import RecursiveCharacterTextSplitter
 
 # Creates Path objects for file directories -> easier to manipulate and cleaner than manually opening files using os
 pdf_folder = Path("drugs_final/")
@@ -37,21 +33,9 @@ converter = DocumentConverter(
 
 print("Converter Created")
 
-# Parameters for chunking function
-headers_to_split_on = [
-    ("#", "Header 1"),
-    ("##", "Header 2"),
-    ("###", "Header 3"),
-]
-
-# Markdown Chunker initialized
-# splitter = MarkdownHeaderTextSplitter(headers_to_split_on=headers_to_split_on)
-
 # Recursive Character Splitter initialized
 splitter = RecursiveCharacterTextSplitter(
-    chunk_size=800,
-    chunk_overlap=100,
-    separators=["\n\n", "\n", ".", " ", ""],
+    chunk_size=800, chunk_overlap=100, separators=["\n\n", "\n", ".", " ", ""]
 )
 
 print("Text Splitter Initialized")
@@ -91,7 +75,23 @@ def clean_md(output_folder):
         print(f"Cleaned Markdown saved: {filename}")
 
 
-# md chunked according to headers (best for data set as context is separated by headers)
+# Helper to infer headers from surrounding text
+def extract_nearest_headers(chunk_start_idx, full_text):
+    lines = full_text[:chunk_start_idx].splitlines()
+    headers = {"Header 1": "", "Header 2": "", "Header 3": ""}
+    for line in reversed(lines):
+        if line.startswith("###") and not headers["Header 3"]:
+            headers["Header 3"] = line.lstrip("# ")
+        elif line.startswith("##") and not headers["Header 2"]:
+            headers["Header 2"] = line.lstrip("# ")
+        elif line.startswith("#") and not headers["Header 1"]:
+            headers["Header 1"] = line.lstrip("# ")
+        if all(headers.values()):
+            break
+    return headers
+
+
+# md chunked and enriched with header metadata
 def chunk_markdown_text(output_folder, chunks_folder):
 
     for md_file in output_folder.glob("*.md"):
@@ -99,20 +99,21 @@ def chunk_markdown_text(output_folder, chunks_folder):
         print(f"Chunking {md_file.name}...")
 
         md_text = md_file.read_text(encoding="utf-8")
+        chunks = splitter.create_documents([md_text])
 
-        chunks = splitter.split_text(md_text)
+        file_chunks = []
+        for i, chunk in enumerate(chunks):
+            start_idx = md_text.find(chunk.page_content.strip())
+            header_meta = extract_nearest_headers(start_idx, md_text)
 
-        file_chunks = [
-            {
-                "file": md_file.name,
-                "chunk_id": f"{md_file.stem}_{i}",
-                "content": (
-                    chunk.page_content if hasattr(chunk, "page_content") else str(chunk)
-                ),
-                "metadata": chunk.metadata if hasattr(chunk, "metadata") else {},
-            }
-            for i, chunk in enumerate(chunks)
-        ]
+            file_chunks.append(
+                {
+                    "file": md_file.name,
+                    "chunk_id": f"{md_file.stem}_{i}",
+                    "content": chunk.page_content,
+                    "metadata": header_meta,
+                }
+            )
 
         print(f"{len(file_chunks)} chunks created for {md_file.name}")
 
@@ -134,7 +135,8 @@ def embed_chunks(chunks_folder, model_name="all-MiniLM-L6-v2"):
         chunk_data = json.loads(chunk_file.read_text(encoding="utf-8"))
 
         for chunk in chunk_data:
-            text = chunk["content"]
+            headers = " ".join(chunk.get("metadata", {}).values())
+            text = headers + "\n" + chunk["content"]
             embedding = model.encode(text)
 
             # Normalize embedding for cosine similarity
@@ -173,13 +175,13 @@ def inspect_metadata(metadata_folder="rag_metadata.pkl"):
 
     with open(metadata_folder, "rb") as f:
         metadata = pickle.load(f)
-
-        # Manipulate indexing to retrieve specific chunks
         print(metadata[20:22])
 
 
 # Pipeline
 # extract_text_to_md(pdf_folder)
 # clean_md(output_folder)
-chunk_markdown_text(output_folder, chunks_folder)
-embed_chunks(chunks_folder)
+# chunk_markdown_text(output_folder, chunks_folder)
+# embed_chunks(chunks_folder)
+
+# inspect_metadata()
