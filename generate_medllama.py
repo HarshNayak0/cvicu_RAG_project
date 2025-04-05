@@ -2,7 +2,7 @@ from llama_cpp import Llama
 from query import search_chunks
 
 # Path to your GGUF model (must match downloaded MedLLaMA GGUF model file)
-MODEL_PATH = "models/medllama-3-8B.Q4_K_M.gguf"
+MODEL_PATH = "models/MedLLaMA-3.Q4_K_M.gguf"
 
 print("🔄 Loading GGUF quantized MedLLaMA model using llama-cpp-python...")
 
