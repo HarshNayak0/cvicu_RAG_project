@@ -2,11 +2,9 @@ chunks/
 
 clean_text/
 
-drugs/
-
 cvicu_nursing_policies/
 
-drugs_final/
+drugs/
 
 test_clean_text/
 
@@ -18,14 +16,6 @@ __pycache__/
 *.pyc
 
 *.csv
-
-*extract.py
-
-*extra.py
-
-*test_cleaning.py
-
-*test_extraction.py
 
 *rag_index.faiss
 

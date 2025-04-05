@@ -1,30 +1,32 @@
-# New file: generate_medllama.py (GGUF + llama-cpp-python)
-
 from llama_cpp import Llama
 from query import search_chunks
 
-# Path to your GGUF model
+# Path to your GGUF model (must match downloaded MedLLaMA GGUF model file)
 MODEL_PATH = "models/medllama-3-8B.Q4_K_M.gguf"
 
 print("🔄 Loading GGUF quantized MedLLaMA model using llama-cpp-python...")
 
-# Load model
+# Initialize the LLM with custom settings
 llm = Llama(
-    model_path=MODEL_PATH,
-    n_ctx=2048,
-    n_threads=8,         # adjust based on your CPU
-    n_gpu_layers=20,     # use GPU for top layers if available, or set to 0 for CPU only
-    verbose=False
+    model_path=MODEL_PATH,  # path to your local GGUF model file
+    n_ctx=2048,  # maximum number of tokens LLM can hold in memory (context window)
+    n_threads=8,  # number of CPU threads to use for inference
+    n_gpu_layers=20,  # number of top layers to offload to GPU (0 for CPU-only)
+    verbose=False,  # suppress internal logs from llama.cpp
 )
 
 print("✅ GGUF model loaded!")
 
+
+# Prompt builder that constructs the full message passed to the LLM
 def build_prompt(query, chunks):
+    # Combine chunk metadata and content into readable context blocks
     context = "\n\n".join(
         f"File: {chunk['file']} | Chunk ID: {chunk['chunk_id']}\n{chunk['preview']}"
         for chunk in chunks
     )
 
+    # Set up the system role instruction for the LLM
     system_prompt = (
         "You are a helpful clinical assistant specialized in CVICU nursing policies. "
         "Use the provided policy excerpts to answer the user's question as accurately and completely as possible. "
@@ -34,16 +36,20 @@ def build_prompt(query, chunks):
         "If the answer is not directly stated, use your best clinical judgment based on the context."
     )
 
+    # Format the full prompt using chat-style markup expected by instruct models
     prompt = f"<s>[INST] {system_prompt}\n\nContext:\n{context}\n\nQuestion: {query}\n\nAnswer: [/INST]"
     return prompt
 
+
+# Handles embedding query, retrieving top chunks, building prompt and generating answer
 def generate_answer(query):
-    top_chunks = search_chunks(query)
-    prompt = build_prompt(query, top_chunks)
+    top_chunks = search_chunks(query)  # Retrieve top relevant chunks
+    prompt = build_prompt(query, top_chunks)  # Construct full LLM prompt
 
     print("\n🧠 Prompt Sent to LLM:\n")
     print(prompt)
 
+    # Call LLM to generate an answer
     output = llm(prompt, max_tokens=350, temperature=0.7)
     answer = (
         output.get("choices", [{}])[0]
@@ -51,9 +57,11 @@ def generate_answer(query):
         .strip()
     )
 
+    # Fallback if model fails to return any text
     if not answer:
         answer = "[⚠️ Model returned no answer. You may need to increase context or review prompt quality.]"
 
+    # Display sources and generated output
     print("\n📚 Sources:")
     for chunk in top_chunks:
         print(f"- {chunk['file']} (Chunk ID: {chunk['chunk_id']})")
@@ -61,6 +69,8 @@ def generate_answer(query):
     print("\n🩺 Generated Answer:\n")
     print(answer)
 
+
+# Main loop for interactive question answering
 if __name__ == "__main__":
     while True:
         query = input("\nAsk a clinical question (or type 'exit'): ")
