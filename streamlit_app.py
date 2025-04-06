@@ -18,6 +18,7 @@ MODELS = {
     },
 }
 
+
 # Lazy-load LLM models
 @st.cache_resource
 def load_model(model_name):
@@ -30,31 +31,42 @@ def load_model(model_name):
         verbose=False,
     )
 
+
 # Build formatted prompt from chunks and question
-def build_prompt(query, chunks):
+def build_prompt(query, chunks, model_name):
     context = "\n\n".join(
         f"File: {chunk['file']} | Chunk ID: {chunk['chunk_id']}\n{chunk['preview']}"
         for chunk in chunks
     )
+
     system_prompt = (
         "You are a helpful clinical assistant specialized in CVICU nursing policies. "
         "Use the provided policy excerpts to answer the user's question as accurately and completely as possible. "
         "Only use relevant clinical information such as administration, dosage, monitoring, adverse effects, precautions, and indications. "
-        "Include exact dosages, infusion details, and monitoring instructions when provided. "
+        "When asked about dosage, give the exact dosing ranges, units, and route (e.g., IV, subq), and include frequency. "
+        "Always include the patient context (e.g., ICU, palliative). If a range is provided, give both minimum and maximum. "
+        "If multiple administration methods exist, explain each. Respond clearly and professionally. "
         "Ignore any content related to legal disclaimers, institutional boilerplate, headers, page numbers, or footnotes. "
         "If the answer is not directly stated, use your best clinical judgment based on the context."
     )
-    return f"<s>[INST] {system_prompt}\n\nContext:\n{context}\n\nQuestion: {query}\n\nAnswer: [/INST]"
+
+    # Change format based on model
+    if "medllama" in model_name.lower():
+        return f"<s>[INST] <<SYS>>\n{system_prompt}\n<</SYS>>\n\nContext:\n{context}\n\nQuestion: {query}\n\nAnswer: [/INST]"
+    else:
+        return f"[INST] {system_prompt}\n\nContext:\n{context}\n\nQuestion: {query}\n\nAnswer: [/INST]"
+
 
 # Run query and generate answer
-def generate_answer(llm, query):
+def generate_answer(llm, query, model_name):
     top_chunks = search_chunks(query)
-    prompt = build_prompt(query, top_chunks)
+    prompt = build_prompt(query, top_chunks, model_name)
     output = llm(prompt, max_tokens=350, temperature=0.7)
     answer = output.get("choices", [{}])[0].get("text", "").strip()
     if not answer:
         answer = "[⚠️ Model returned no response.]"
     return answer, top_chunks
+
 
 # Streamlit app UI
 def main():
@@ -76,13 +88,14 @@ def main():
     query = st.text_input("💬 Enter a clinical question:")
     if st.button("🧠 Generate Answer") and query:
         with st.spinner("Thinking..."):
-            answer, sources = generate_answer(llm, query)
+            answer, sources = generate_answer(llm, query, selected_model)
         st.subheader("🩺 Answer")
         st.write(answer)
 
         st.subheader("📚 Sources")
         for chunk in sources:
             st.markdown(f"- **{chunk['file']}** (Chunk ID: `{chunk['chunk_id']}`)")
+
 
 if __name__ == "__main__":
     main()

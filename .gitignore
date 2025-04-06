@@ -26,3 +26,9 @@ __pycache__/
 *generate.py
 
 *generate_medllama.py
+
+*requirements.txt
+
+*.venv
+
+*.DS_Store

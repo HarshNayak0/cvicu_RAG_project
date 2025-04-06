@@ -12,14 +12,14 @@ MODEL_CONFIG = {
         "path": "models/mistral-7b-instruct-v0.1.Q5_K_M.gguf",
         "n_gpu_layers": 0,
     },
-    "medllama": {"path": "models/MedLLaMA-3.Q4_K_M.gguf", "n_gpu_layers": 20},
+    "medllama": {"path": "models/MedLLaMA-3.Q4_K_M", "n_gpu_layers": 20},
 }
 
 
 # -----------------------
 # 🧠 Prompt Construction
 # -----------------------
-def build_prompt(query, chunks):
+def build_prompt(query, chunks, model_name):
     context = "\n\n".join(
         f"File: {chunk['file']} | Chunk ID: {chunk['chunk_id']}\n{chunk['preview']}"
         for chunk in chunks
@@ -29,12 +29,18 @@ def build_prompt(query, chunks):
         "You are a helpful clinical assistant specialized in CVICU nursing policies. "
         "Use the provided policy excerpts to answer the user's question as accurately and completely as possible. "
         "Only use relevant clinical information such as administration, dosage, monitoring, adverse effects, precautions, and indications. "
-        "Include exact dosages, infusion details, and monitoring instructions when provided. "
-        "Ignore legal disclaimers, institutional boilerplate, headers, page numbers, or footnotes. "
+        "When asked about dosage, give the exact dosing ranges, units, and route (e.g., IV, subq), and include frequency. "
+        "Always include the patient context (e.g., ICU, palliative). If a range is provided, give both minimum and maximum. "
+        "If multiple administration methods exist, explain each. Respond clearly and professionally. "
+        "Ignore any content related to legal disclaimers, institutional boilerplate, headers, page numbers, or footnotes. "
         "If the answer is not directly stated, use your best clinical judgment based on the context."
     )
 
-    return f"<s>[INST] {system_prompt}\n\nContext:\n{context}\n\nQuestion: {query}\n\nAnswer: [/INST]"
+    # Change format based on model
+    if "medllama" in model_name.lower():
+        return f"<s>[INST] <<SYS>>\n{system_prompt}\n<</SYS>>\n\nContext:\n{context}\n\nQuestion: {query}\n\nAnswer: [/INST]"
+    else:
+        return f"[INST] {system_prompt}\n\nContext:\n{context}\n\nQuestion: {query}\n\nAnswer: [/INST]"
 
 
 # -----------------------

@@ -196,10 +196,10 @@ def inspect_metadata(metadata_folder="rag_metadata.pkl"):
 
 
 # === EXECUTION PIPELINE ===
-extract_text_to_md(pdf_folder)
-clean_md(output_folder)
-chunk_markdown_text(output_folder, chunks_folder)
-embed_chunks(chunks_folder)
+# extract_text_to_md(pdf_folder)
+# clean_md(output_folder)
+# chunk_markdown_text(output_folder, chunks_folder)
+# embed_chunks(chunks_folder)
 
 # Uncomment to inspect metadata manually
 # inspect_metadata()
